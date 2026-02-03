@@ -1,0 +1,81 @@
+import React from "react";
+import { motion } from "framer-motion";
+
+interface LevelRangeSelectorProps {
+  min: number;
+  max: number;
+  onChange: (range: { min: number; max: number }) => void;
+}
+
+export const LevelRangeSelector: React.FC<LevelRangeSelectorProps> = ({
+  min,
+  max,
+  onChange,
+}) => {
+  const levels = Array.from({ length: 10 }, (_, i) => i + 1);
+
+  const handleLevelClick = (level: number) => {
+    const distToMin = Math.abs(level - min);
+    const distToMax = Math.abs(level - max);
+
+    if (level < min) {
+      onChange({ min: level, max });
+    } else if (level > max) {
+      onChange({ min, max: level });
+    } else {
+      if (distToMin < distToMax) {
+        onChange({ min: level, max });
+      } else {
+        onChange({ min, max: level });
+      }
+    }
+  };
+
+  return (
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+          Intensity
+        </span>
+        <span className="text-xs font-medium text-slate-400">
+          {min === max ? `Level ${min}` : `Level ${min} - ${max}`}
+        </span>
+      </div>
+      <div className="relative flex justify-between items-center bg-slate-100 rounded-xl p-1 h-12">
+        {/* Active Range Highlight Background */}
+        <motion.div
+          className="absolute top-1 bottom-1 bg-white shadow-sm rounded-lg border border-slate-200"
+          initial={false}
+          animate={{
+            left: `${((min - 1) / 10) * 100}%`,
+            right: `${100 - (max / 10) * 100}%`,
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        />
+
+        {levels.map((level) => {
+          const isActive = level >= min && level <= max;
+          const isBound = level === min || level === max;
+
+          return (
+            <button
+              key={level}
+              onClick={() => handleLevelClick(level)}
+              className={`relative z-10 w-full h-full flex items-center justify-center text-sm font-medium transition-colors rounded-lg ${
+                isActive
+                  ? "text-slate-900"
+                  : "text-slate-400 hover:text-slate-600"
+              } ${isBound ? "font-bold" : ""}`}
+            >
+              {level}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex justify-between mt-1 px-1">
+        <span className="text-[10px] text-slate-400">Light</span>
+        <span className="text-[10px] text-slate-400">Deep</span>
+      </div>
+    </div>
+  );
+};

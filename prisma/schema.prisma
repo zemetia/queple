@@ -1,0 +1,70 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  image         String?
+  birthday      DateTime?
+  firebaseUid   String         @unique
+  location      String
+  ipAddress     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  reactions     UserQuestion[]
+  createdQuestions Question[]
+}
+
+model Question {
+  id            String         @id @default(cuid())
+  content       String
+  forGender     String         @default("BOTH") // "MALE", "FEMALE", "BOTH"
+  level         Int            @default(1) // 1 (Shallow) to 10 (Deep)
+  is18Plus      Boolean        @default(false) // if true then if level 1 (Not 18+ Question), 3 (kissing, cuddling, etc), 5 (oral sex, etc), 7 (anal sex, etc), 10 (Extremely 21+ Question)
+
+  upvotes       Int            @default(0)
+  downvotes     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  categoryId    String
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  creatorId     String @default("0000000000000000000000000")
+  creator       User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  viewersCount  Int    @default(0)
+  averageTime   Float  @default(0) // in seconds
+
+  reactions     UserQuestion[]
+}
+
+model Category {
+  id            String         @id @default(cuid())
+  name          String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  questions     Question[]
+}
+
+model UserQuestion {
+  id            String         @id @default(cuid())
+  userId        String
+  questionId    String
+  reaction      String         // 'UPVOTE', 'DOWNVOTE', 'SKIP'
+  timeSpent     Float          @default(0) // in seconds
+  createdAt     DateTime       @default(now())
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+}
