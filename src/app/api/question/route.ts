@@ -42,7 +42,12 @@ export async function POST(request: Request) {
     const excludeIds = new Set<string>(clientExcludeIds);
     if (userId) {
       const userHistory = await prisma.userQuestion.findMany({
-        where: { userId },
+        where: {
+          userId,
+          reaction: {
+            in: ["UPVOTE", "DOWNVOTE"],
+          },
+        },
         select: { questionId: true },
       });
       userHistory.forEach((h) => excludeIds.add(h.questionId));
@@ -202,7 +207,7 @@ export async function POST(request: Request) {
                               forGender: q.forGender || req.gender,
                               is18Plus: !!q.is18Plus,
                               categoryId: catId,
-                              creatorId: "0000000000000000000000000",
+                              creatorId: userId || "0000000000000000000000000",
                             },
                           });
                           saved.push(newQ);

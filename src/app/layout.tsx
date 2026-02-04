@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Queple - Deep Questions",
   description: "Connect deeply through meaningful questions.",
+  icons: {
+    icon: "/patterns/logo.png",
+  },
 };
 
 export default function RootLayout({

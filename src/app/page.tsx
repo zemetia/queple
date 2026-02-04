@@ -190,11 +190,16 @@ const Card = ({
           </div>
 
           <div className="flex-1 flex flex-col items-center justify-center w-full text-center relative z-10">
-            <h2
-              className={`text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r ${styles.highlight} mb-2 tracking-tight`}
-            >
-              Queple
-            </h2>
+            {/* Logo on Card Back */}
+            <div className="mb-4 relative">
+              <img
+                src="/patterns/logo.png"
+                alt="Queple"
+                className={`w-32 h-32 object-contain drop-shadow-sm transition-all duration-500 ${
+                  gender !== "BOTH" ? "grayscale opacity-60" : ""
+                }`}
+              />
+            </div>
             <p className="text-xs font-semibold opacity-40 uppercase tracking-[0.2em] animate-pulse text-slate-800">
               Tap to Reveal
             </p>
@@ -338,9 +343,13 @@ export default function GamePage() {
     const duration = (endTime - startTimeRef.current) / 1000; // in seconds
 
     // Record interaction in the background
-    recordInteraction(currentCard.id, reaction, duration).catch((err) =>
-      console.error("Failed to record stats", err),
-    );
+    recordInteraction(
+      currentCard.id,
+      reaction,
+      duration,
+      undefined,
+      user?.uid,
+    ).catch((err) => console.error("Failed to record stats", err));
 
     // Proceed to next card
     setSwipedCards((prev) => [...prev, currentCard]);
@@ -494,16 +503,17 @@ export default function GamePage() {
           {/* Main Logo Area */}
           <div className="flex flex-col items-center">
             <div className="mb-6 relative">
-              <div className="absolute inset-0 bg-slate-200 blur-2xl opacity-50 rounded-full" />
-              <div className="relative w-24 h-24 bg-white rounded-[2rem] shadow-2xl shadow-slate-200/50 flex items-center justify-center border border-slate-100">
-                <Sparkles
-                  className="text-slate-800 w-10 h-10"
-                  strokeWidth={1.5}
+              <div className="absolute inset-0 bg-slate-200 blur-3xl opacity-40 rounded-full scale-150" />
+              <div className="relative w-56 h-56 flex items-center justify-center">
+                <img
+                  src="/patterns/logo.png"
+                  alt="Queple"
+                  className="w-full h-full object-contain drop-shadow-xl"
                 />
               </div>
             </div>
             <h1 className="text-5xl font-black tracking-tighter text-slate-900 mb-3">
-              Queple.
+              queple.
             </h1>
             <p className="text-base text-slate-500 font-medium max-w-[260px] leading-relaxed">
               Curated questions for meaningful conversations.

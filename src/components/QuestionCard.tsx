@@ -1,6 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import { ThumbsUp, ThumbsDown, MessageSquareMore } from "lucide-react";
+import { TextFit } from "@/components/TextFit";
 
 interface Question {
   id: string;
@@ -35,10 +36,15 @@ export function QuestionCard({ question, onReact }: QuestionCardProps) {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center relative z-10">
-        <h2 className="text-3xl md:text-4xl font-extrabold leading-tight text-center text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-400">
+      <div className="flex-1 flex items-center justify-center relative z-10 w-full h-full overflow-hidden p-4">
+        <TextFit
+          mode="multi"
+          min={16}
+          max={48}
+          className="font-extrabold leading-tight text-center text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-400 w-full h-full flex items-center justify-center"
+        >
           {question.content}
-        </h2>
+        </TextFit>
       </div>
 
       <div className="flex justify-center gap-6 mt-10 relative z-10">

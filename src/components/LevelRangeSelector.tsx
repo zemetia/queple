@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 
 interface LevelRangeSelectorProps {
@@ -12,27 +12,36 @@ export const LevelRangeSelector: React.FC<LevelRangeSelectorProps> = ({
   max,
   onChange,
 }) => {
+  const [hoveredLevel, setHoveredLevel] = useState<number | null>(null);
   const levels = Array.from({ length: 10 }, (_, i) => i + 1);
 
   const handleLevelClick = (level: number) => {
-    const distToMin = Math.abs(level - min);
-    const distToMax = Math.abs(level - max);
-
-    if (level < min) {
-      onChange({ min: level, max });
-    } else if (level > max) {
-      onChange({ min, max: level });
+    if (min !== max) {
+      // If a range is already selected (start !== end), reset to the clicked level
+      // This mimics "picking a new start date" behavior
+      onChange({ min: level, max: level });
     } else {
-      if (distToMin < distToMax) {
-        onChange({ min: level, max });
+      // If a single level is selected (min === max), complete the range
+      if (level < min) {
+        onChange({ min: level, max: min });
       } else {
         onChange({ min, max: level });
       }
     }
   };
 
+  // Determine the range to visualize (including hover preview)
+  let displayMin = min;
+  let displayMax = max;
+
+  // Only show preview if we are in "Extension Mode" (currently single selection)
+  if (min === max && hoveredLevel !== null) {
+    displayMin = Math.min(min, hoveredLevel);
+    displayMax = Math.max(min, hoveredLevel);
+  }
+
   return (
-    <div className="w-full">
+    <div className="w-full" onMouseLeave={() => setHoveredLevel(null)}>
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">
           Intensity
@@ -47,20 +56,22 @@ export const LevelRangeSelector: React.FC<LevelRangeSelectorProps> = ({
           className="absolute top-1 bottom-1 bg-white shadow-sm rounded-lg border border-slate-200"
           initial={false}
           animate={{
-            left: `${((min - 1) / 10) * 100}%`,
-            right: `${100 - (max / 10) * 100}%`,
+            left: `${((displayMin - 1) / 10) * 100}%`,
+            right: `${100 - (displayMax / 10) * 100}%`,
           }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         />
 
         {levels.map((level) => {
-          const isActive = level >= min && level <= max;
-          const isBound = level === min || level === max;
+          // Check against displayMin/Max so text color updates during hover preview
+          const isActive = level >= displayMin && level <= displayMax;
+          const isBound = level === displayMin || level === displayMax;
 
           return (
             <button
               key={level}
               onClick={() => handleLevelClick(level)}
+              onMouseEnter={() => setHoveredLevel(level)}
               className={`relative z-10 w-full h-full flex items-center justify-center text-sm font-medium transition-colors rounded-lg ${
                 isActive
                   ? "text-slate-900"
