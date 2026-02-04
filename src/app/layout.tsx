@@ -18,6 +18,26 @@ export const metadata: Metadata = {
   description: "Connect deeply through meaningful questions.",
   icons: {
     icon: "/patterns/logo.png",
+    shortcut: "/patterns/logo.png",
+    apple: "/patterns/logo.png",
+  },
+  openGraph: {
+    title: "Queple - Deep Questions",
+    description: "Connect deeply through meaningful questions.",
+    images: [
+      {
+        url: "/patterns/logo.png",
+        width: 800,
+        height: 600,
+        alt: "Queple Logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Queple - Deep Questions",
+    description: "Connect deeply through meaningful questions.",
+    images: ["/patterns/logo.png"],
   },
 };
 
