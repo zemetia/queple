@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           firebaseUser={user}
           onComplete={(userData) => {
             setNeedsOnboarding(false);
-            // If onboarding is complete, we might want to ensure user state is updated or validated
+            setDbUser(userData); // Populate dbUser immediately after onboarding
           }}
         />
       )}
