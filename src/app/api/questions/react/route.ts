@@ -5,14 +5,11 @@ export async function POST(req: Request) {
   // 1. Get User ID
   const uid = req.headers.get("X-Firebase-UID");
 
-  // Note: Guest reactions are currently ignored in this API endpoint.
-  // To track guest reactions, a persistent session ID should be passed
-  // or a fallback strategy (like System User) implemented here.
   if (!uid) {
-    return NextResponse.json({
-      success: true,
-      message: "Guest reaction ignored (No User ID provided)",
-    });
+    return NextResponse.json(
+      { error: "Authentication required to react." },
+      { status: 401 },
+    );
   }
 
   try {

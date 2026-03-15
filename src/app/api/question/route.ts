@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prismadb";
 import { Question } from "@prisma/client";
 import { getFallbackQuestions } from "@/data/fallback-questions";
 import { LEVEL_DESCRIPTIONS } from "@/data/level-desc";
+import { getSessionVibe } from "@/lib/agent";
 
 // helper to clean JSON
 const cleanJson = (text: string) => {
@@ -38,15 +39,43 @@ export async function POST(request: Request) {
       if (user) userId = user.id;
     }
 
+    // MANDATORY LOGIN CHECK
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Authentication required to play." },
+        { status: 401 },
+      );
+    }
+
+    // Agent Intelligence: Vibe Check
+    let effectiveMinLevel = minLevel;
+    let effectiveMaxLevel = maxLevel;
+    let effectiveCategoryId = categoryId;
+    let engagementContext = "";
+    let currentVibe: any = null;
+
+    if (userId) {
+      const vibe = await getSessionVibe(userId);
+      currentVibe = vibe;
+      effectiveMinLevel = Math.max(1, minLevel + vibe.recommendedLevelShift);
+      effectiveMaxLevel = Math.max(effectiveMinLevel, maxLevel + vibe.recommendedLevelShift);
+      
+      if (vibe.intensity === "DEEP") {
+        engagementContext = `The couple is currently in a high-engagement, deep conversation state focusing on topics like ${vibe.topCategoryName || "their relationship"}. Prioritize emotional depth.`;
+        if (vibe.topCategoryId) effectiveCategoryId = vibe.topCategoryId;
+      } else if (vibe.intensity === "EXHAUSTED") {
+        engagementContext = "Conversation seems to be stalling. Provide a high-quality, light-hearted icebreaker to reset the energy.";
+        effectiveMinLevel = 1;
+        effectiveMaxLevel = 3;
+      }
+    }
+
     // 1. Get Seen Questions
     const excludeIds = new Set<string>(clientExcludeIds);
     if (userId) {
       const userHistory = await prisma.userQuestion.findMany({
         where: {
           userId,
-          reaction: {
-            in: ["UPVOTE", "DOWNVOTE"],
-          },
         },
         select: { questionId: true },
       });
@@ -60,10 +89,10 @@ export async function POST(request: Request) {
       excludeSet: Set<string>,
     ) => {
       const whereClause: any = {
-        level: { gte: minLevel, lte: maxLevel },
+        level: { gte: effectiveMinLevel, lte: effectiveMaxLevel },
         id: { notIn: Array.from(excludeSet) },
         is18Plus: allow18Plus ? undefined : false,
-        categoryId: categoryId || undefined,
+        categoryId: effectiveCategoryId || undefined,
       };
       if (gender) whereClause.forGender = gender;
 
@@ -138,6 +167,8 @@ export async function POST(request: Request) {
               Goal: Generate ONE unique, deep question for a couple.
               Generate ${req.count} unique questions.
               
+              Session Context: ${engagementContext || "Standard session momentum."}
+              
               Target Audience: The question is specifically for the ${req.gender === "BOTH" ? "COUPLE to answer together" : req.gender + " partner to answer"}.
               
               Gender Nuance Rules:
@@ -146,8 +177,8 @@ export async function POST(request: Request) {
               - If BOTH: Focus on shared experiences and mutual growth.
               
               Scale: 1 (Surface) to 10 (Naked Truth).
-              Selected Level: ${minLevel} (${LEVEL_DESCRIPTIONS[minLevel]}) to ${maxLevel} (${LEVEL_DESCRIPTIONS[maxLevel]})
-              Category: ${categoryId ? "Matching provided ID" : "Varied"}
+              Selected Level: ${effectiveMinLevel} (${LEVEL_DESCRIPTIONS[effectiveMinLevel] || "Unknown"}) to ${effectiveMaxLevel} (${LEVEL_DESCRIPTIONS[effectiveMaxLevel] || "Unknown"})
+              Target Category: ${effectiveCategoryId ? `Focus on the category associated with ID ${currentVibe?.topCategoryName || effectiveCategoryId}` : "Varied"}
               18+ Intimacy Mode: ${allow18Plus ? "ENABLED" : "DISABLED"}
               
               ${adultProgression}
@@ -156,7 +187,7 @@ export async function POST(request: Request) {
               - Return ONLY the question text.
               - BE COMPACT: Keep the question to 1-3 sentences maximum. Get straight to the point.
               - EXCEPTION: 'Case Study' questions can be longer (3-5 sentences) to properly set up the scenario.
-              - If adult mode is enabled, the question MUST strictly follow the INTIMACY PROGRESSION listed above for Level maximum ${maxLevel}.
+              - If adult mode is enabled, the question MUST strictly follow the INTIMACY PROGRESSION listed above for Level maximum ${effectiveMaxLevel}.
               - If adult mode is disabled, keep it purely emotional or psychological.
               - Level 10 must always be "shattering" in its transparency, regardless of adult mode.`;
 
@@ -305,7 +336,15 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json(sortedQuestions.slice(0, 6));
+    const responseData = sortedQuestions.slice(0, 6);
+    const res = NextResponse.json(responseData);
+
+    // Add Vibe Header for Client-Side "Invisible" monitoring
+    if (currentVibe) {
+      res.headers.set("x-queple-vibe", JSON.stringify(currentVibe));
+    }
+
+    return res;
   } catch (error) {
     console.error("POST /api/question Error:", error);
     return NextResponse.json(

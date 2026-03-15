@@ -11,6 +11,7 @@ import { OnboardingModal } from "./OnboardingModal";
 
 interface AuthContextType {
   user: User | null;
+  dbUser: any | null; // <-- Added
   loading: boolean;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [dbUser, setDbUser] = useState<any | null>(null); // <-- Added
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
@@ -37,8 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (!data.exists) {
             setNeedsOnboarding(true);
+            setDbUser(null);
           } else {
             setNeedsOnboarding(false);
+            setDbUser(data.user); // <-- Added
 
             // Update Location if available (Login Success for existing user)
             if ("geolocation" in navigator) {
@@ -71,11 +75,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(currUser);
         } else {
           setUser(null);
+          setDbUser(null);
           setNeedsOnboarding(false);
         }
       } catch (error) {
         console.error("Auth check failed", error);
         setUser(null);
+        setDbUser(null);
       } finally {
         setLoading(false);
       }
@@ -96,13 +102,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signOut(auth);
       setNeedsOnboarding(false);
+      setDbUser(null);
     } catch (error) {
       console.error("Error signing out", error);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, logout }}>
+    <AuthContext.Provider value={{ user, dbUser, loading, signIn, logout }}>
       {children}
       {user && needsOnboarding && (
         <OnboardingModal

@@ -3,8 +3,6 @@
 import { prisma } from "@/lib/prismadb";
 
 // In a real app, we would get the userId from the session.
-// For now, we'll use the system user ID or a fallback.
-const SYSTEM_USER_ID = "0000000000000000000000000";
 
 export async function recordInteraction(
   questionId: string,
@@ -27,36 +25,31 @@ export async function recordInteraction(
         where: { firebaseUid },
         select: { id: true },
       });
+
       if (user) {
         validUserId = user.id;
       }
     }
 
-    // Fallback to System User if still no ID
+    // MANDATORY: If still no user ID, we DO NOT fall back to system.
+    // We strictly require an authenticated user.
     if (!validUserId) {
-      validUserId = SYSTEM_USER_ID;
+      console.warn(`Attempted interaction without valid user (UID: ${firebaseUid}). Rejected.`);
+      return { success: false, error: "Authentication required" };
     }
 
-    // Ensure the user actually exists (to prevent FK errors) specifically for the fallback
-    // or if we trust the resolved ID, we can skip. But let's be safe.
-    // If we resolved from DB above, we know it exists.
-    // If passed as arg, we might want to check.
-    // If System User, we assume it exists (seeded).
+    // Calculate Intelligence Score
+    // Formula: (Reaction Weight) * (Duration Factor)
+    let reactionWeight = 0.5; // Default for SKIP
+    if (reaction === "UPVOTE") reactionWeight = 1.5;
+    if (reaction === "DOWNVOTE") reactionWeight = -1.0;
 
-    // Safety check mostly for direct userId arg usage or System User integrity
-    if (validUserId === userId || validUserId === SYSTEM_USER_ID) {
-      const userExists = await prisma.user.findUnique({
-        where: { id: validUserId },
-        select: { id: true },
-      });
+    let durationFactor = 1.0;
+    if (timeSpent < 5) durationFactor = 0.2; // Boredom
+    if (timeSpent > 30) durationFactor = 2.5; // Deep conversation
 
-      if (!userExists) {
-        if (validUserId !== SYSTEM_USER_ID) {
-          console.warn(`User ${validUserId} not found. Fallback to system.`);
-        }
-        validUserId = SYSTEM_USER_ID;
-      }
-    }
+    const score = Number((reactionWeight * durationFactor).toFixed(2));
+    const isHighEngagement = score >= 2.0;
 
     await prisma.$transaction(async (tx) => {
       // 1. Get previous interaction state
@@ -79,13 +72,17 @@ export async function recordInteraction(
         },
         update: {
           reaction: reaction,
-          timeSpent: timeSpent, // Overwrite time spent based on latest interaction
+          timeSpent: timeSpent,
+          score: score,
+          isHighEngagement: isHighEngagement,
         },
         create: {
           userId: validUserId!,
           questionId: questionId,
           reaction: reaction,
           timeSpent: timeSpent,
+          score: score,
+          isHighEngagement: isHighEngagement,
         },
       });
 

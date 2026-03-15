@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   motion,
   AnimatePresence,
@@ -250,7 +250,7 @@ type GameSettings = {
 
 // --- Main Page Component ---
 export default function GamePage() {
-  const { user, signIn, logout } = useAuth();
+  const { user, dbUser, signIn, logout } = useAuth();
   const [cards, setCards] = useState<Question[]>([]);
   const [swipedCards, setSwipedCards] = useState<Question[]>([]);
   const [gameStarted, setGameStarted] = useState(false);
@@ -265,7 +265,45 @@ export default function GamePage() {
     allow18Plus: false,
   });
 
+  const userAge = useMemo(() => {
+    if (!dbUser?.birthday) return 0;
+    const today = new Date();
+    const birthDate = new Date(dbUser.birthday);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  }, [dbUser?.birthday]);
+
   const startTimeRef = useRef<number>(0);
+  const SWIPED_STORAGE_KEY = "queple_swiped_ids";
+
+  // Load swiped IDs from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(SWIPED_STORAGE_KEY);
+    if (saved) {
+      try {
+        const ids = JSON.parse(saved);
+        if (Array.isArray(ids)) {
+          // We don't need the full Question objects, but the logic expects them
+          // for the excludeIds calculation. We'll map them to minimal objects.
+          setSwipedCards(ids.map(id => ({ id } as Question)));
+        }
+      } catch (e) {
+        console.error("Failed to parse swiped IDs", e);
+      }
+    }
+  }, []);
+
+  // Save swiped IDs whenever they change
+  useEffect(() => {
+    if (swipedCards.length > 0) {
+      const ids = swipedCards.map(c => c.id);
+      localStorage.setItem(SWIPED_STORAGE_KEY, JSON.stringify(ids));
+    }
+  }, [swipedCards]);
 
   // Fetch Questions Function
   const fetchQuestions = async (isInitial = false) => {
@@ -369,7 +407,7 @@ export default function GamePage() {
     handleAction(reaction, directionValue, isCardFlipped);
   };
 
-  const SettingsModal = () => (
+  const renderSettingsModal = () => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/10 backdrop-blur-sm p-4 animate-in fade-in duration-300">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -452,26 +490,28 @@ export default function GamePage() {
           </div>
 
           {/* 18+ Toggle */}
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex flex-col">
-              <span className="font-bold text-slate-800 text-sm">
-                Allow Mature Content
-              </span>
-              <span className="text-[10px] text-slate-400">
-                Include 18+ questions in deck
-              </span>
+          {userAge >= 21 && (
+            <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col">
+                <span className="font-bold text-slate-800 text-sm">
+                  Allow Mature Content
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Include 18+ questions in deck
+                </span>
+              </div>
+              <button
+                onClick={() =>
+                  setSettings((s) => ({ ...s, allow18Plus: !s.allow18Plus }))
+                }
+                className={`w-11 h-6 rounded-full transition-colors relative ${settings.allow18Plus ? "bg-slate-900" : "bg-slate-200"}`}
+              >
+                <div
+                  className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${settings.allow18Plus ? "translate-x-5" : "translate-x-0"}`}
+                />
+              </button>
             </div>
-            <button
-              onClick={() =>
-                setSettings((s) => ({ ...s, allow18Plus: !s.allow18Plus }))
-              }
-              className={`w-11 h-6 rounded-full transition-colors relative ${settings.allow18Plus ? "bg-slate-900" : "bg-slate-200"}`}
-            >
-              <div
-                className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow-sm transition-transform ${settings.allow18Plus ? "translate-x-5" : "translate-x-0"}`}
-              />
-            </button>
-          </div>
+          )}
         </div>
 
         <button
@@ -487,13 +527,22 @@ export default function GamePage() {
     </div>
   );
 
+  // --- Loading Screen ---
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+      </div>
+    );
+  }
+
   // --- Start Screen ---
   if (!gameStarted) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-slate-50 text-slate-900">
         <PatternBackground />
 
-        {showSettings && <SettingsModal />}
+        {showSettings && renderSettingsModal()}
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -521,40 +570,48 @@ export default function GamePage() {
           </div>
 
           <div className="w-full space-y-4">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setGameStarted(true)}
-              className="group relative w-full py-4 px-8 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-2xl shadow-slate-900/10 flex items-center justify-center gap-3 overflow-hidden transition-all"
-            >
-              Start Playing
-              <ArrowUp
-                className="rotate-90 opacity-60 group-hover:translate-x-1 transition-transform"
-                size={18}
-              />
-            </motion.button>
+            {!user ? (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={signIn}
+                className="group relative w-full py-5 px-8 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-2xl shadow-slate-900/10 flex items-center justify-center gap-3 overflow-hidden transition-all"
+              >
+                Sign in with Google
+                <ArrowUp
+                  className="rotate-90 opacity-60 group-hover:translate-x-1 transition-transform"
+                  size={18}
+                />
+              </motion.button>
+            ) : (
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setGameStarted(true)}
+                  className="group relative w-full py-4 px-8 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-2xl shadow-slate-900/10 flex items-center justify-center gap-3 overflow-hidden transition-all"
+                >
+                  Start Playing
+                  <ArrowUp
+                    className="rotate-90 opacity-60 group-hover:translate-x-1 transition-transform"
+                    size={18}
+                  />
+                </motion.button>
 
-            <button
-              onClick={() => setShowSettings(true)}
-              className="w-full py-4 rounded-2xl bg-white border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <Settings size={16} />
-              Preferences
-            </button>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="w-full py-4 rounded-2xl bg-white border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Settings size={16} />
+                  Preferences
+                </button>
+              </>
+            )}
           </div>
 
           {/* Auth Section */}
           <div className="w-full pt-6">
-            {!user ? (
-              <button
-                onClick={signIn}
-                className="w-full py-3 rounded-xl hover:bg-white/50 transition-colors text-xs font-semibold text-slate-500 flex items-center justify-center gap-2 group"
-              >
-                <span className="opacity-50 group-hover:opacity-100 transition-opacity">
-                  Login to track progress
-                </span>
-              </button>
-            ) : (
+            {user && (
               <div className="flex flex-col items-center gap-2">
                 <p className="text-xs text-slate-400 font-medium">
                   Hi, <span className="text-slate-900">{user.displayName}</span>
@@ -583,7 +640,7 @@ export default function GamePage() {
   return (
     <div className="min-h-screen w-full flex flex-col bg-slate-50 relative overflow-hidden text-slate-900">
       <PatternBackground />
-      {showSettings && <SettingsModal />}
+      {showSettings && renderSettingsModal()}
 
       {/* Header */}
       <header className="w-full p-6 flex justify-between items-center z-10 relative">
